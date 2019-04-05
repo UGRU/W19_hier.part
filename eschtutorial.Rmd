@@ -1,0 +1,44 @@
+---
+title: "hier.part tutorial"
+output: html_document
+---
+```{r setup, include=F}
+library(hier.part)
+library(tidyverse)
+df<- read_csv('/Users/ellen/Desktop/eschtutorial.csv',col_types=cols())
+```
+Mac Nally (2000) argued the case for use of hierarchical partitioning as an important means to identify predictor variables having the most independent influence on the response variable (typically species richness or probability of occurrence). Use of randomization of the data matrix also allows the quantification of relative ‘effect sizes’ associated with the partitioning by allowing one to estimate the Z-score for each predictor variable (Mac Nally 2002); this aids in deciding variables to maintain in models.
+
+This method allows an estimation of the total independent contribution of a given variable, despite the existing colinearity between the different variables of the model.
+
+Be sure to also check out "relaimpo" package (rela(tive) impo(rtance)) in addition to this "hier.part" package. 
+
+Use when you think you probably want to do multiple regression...but not everything is independant :) Note, I think path anaylses might be more useful today, since you can account for mixed (random) effects (piecewiseSEM) or non-linear forms of models (lavaan).
+
+- Data is looking at what impacts carbon capture ability of 2 differnt communities. Need to filter data into 2 different community types. 
+```{r example}
+shrub <- df %>% filter(CC=='shrub') #shrub community
+env_shrub<- shrub %>% select(eos,sos,ndvi,AnRF) #possible predictors
+hier.part(shrub$area, env_shrub, fam = "gaussian", gof = "Rsqu") #this is the analysis! Gives you a nice fig output too
+shrub_h <- hier.part(shrub$area, env_shrub, fam = "gaussian", gof = "Rsqu")$I.perc[,1] #we want to extract the relevant values into a list so that we can make a nice figure later
+
+herb <- df %>% filter(CC=='herbaceous') #literally copy everything for the herbaceous community
+env_herb<- herb %>% select(eos,sos,ndvi,AnRF)
+hier.part(herb$area, env_herb, fam = "gaussian", gof = "Rsqu")
+herb_h <- hier.part(herb$area, env_herb, fam = "gaussian", gof = "Rsqu")$I.perc[,1]
+
+#bootstrapping to get some real statistics :) 
+#I'd reccomend making this 1000+, but for efficency/speed sake here, just doing 100. You will see if you run this multiple times, your "answer" might change...another great reason to do num.reps = 1000! ALSO, the data.frame() aspect is becuase of a weird thing in RStudio right now. Usually you wouldn't need it, but this is a quick hack to avert an error code. 
+rand.hp(data.frame(shrub$area), data.frame(env_shrub), family='gaussian',gof='Rsqu',num.rep=100) 
+rand.hp(data.frame(herb$area), data.frame(env_herb), family='gaussian',gof='Rsqu',num.rep=100)
+
+#Figure
+heir<-tibble(shrub_h,herb_h,metric=c('eos','sos','ndvi','AnRF')) %>% 
+  gather(CC,Value,-metric)
+ggplot(heir,aes(x=metric,y=Value,fill=CC))+
+  geom_bar(stat='identity',position='dodge')+
+  scale_fill_manual(name="Community\nComposition",values=c('orange2','darkgreen'),
+                    breaks=c('shrub_h','herb_h'),
+                    labels=c('Shrub','Herbaceous'))
+
+```
